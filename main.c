@@ -3,11 +3,11 @@
 #include <stdio.h>
 
 typedef struct node {
-    char* str;
-    struct node* next;
+    char *str;
+    struct node *next;
 } node;
 
-node* add(node* list, char* str) {
+node *add(node *list, char *str) {
     if (!list) {
         list = malloc(sizeof(node));
         list->next = 0;
@@ -23,6 +23,16 @@ node* add(node* list, char* str) {
     return list;
 }
 
+void free_list(node *head) {
+    node *tmp;
+    while (head != NULL) {
+        tmp = head;
+        head = head->next;
+        free(tmp->str);
+        free(tmp);
+    }
+}
+
 char *get_line_impl() {
     char *line = malloc(10 * sizeof(char));
     int last_index = 0;
@@ -34,12 +44,17 @@ char *get_line_impl() {
         }
         line = realloc(line, (++last_index + 10) * sizeof(char));
     }
+
+    size_t real_len = strlen(line);
+    line = realloc(line, real_len + 1);
+    line[real_len] = 0;
+
     return line;
 }
 
-int contains(char *str, char **array, int array_len) {
-    for (int i = 0; i < array_len; i++) {
-        if (!strcmp(str, array[i])) {
+int contains(node *list, char *word) {
+    for (node *iter = list; iter; iter = iter->next) {
+        if (!strcmp(word, iter->str)) {
             return 1;
         }
     }
@@ -48,23 +63,18 @@ int contains(char *str, char **array, int array_len) {
 
 // Words from str1 that str2 contains
 char *process(char *str1, char *str2) {
-    char **words_from_str2 = 0;
-    int str2_words_index = 0;
+    node *words_from_str2 = 0;
+
     int start = 0;
     size_t str2_len = strlen(str2);
     for (int i = 0; i <= str2_len; i++) {
         if (i == str2_len || (str2[i] == ' ' || str2[i] == '\t')) {
             int end = i - 1;
-            if (!words_from_str2) {
-                words_from_str2 = malloc(sizeof(char *));
-            } else {
-                int new_size = ++str2_words_index + 1;
-                words_from_str2 = realloc(words_from_str2, new_size);
-            }
-            //printf("%d %d\n", start, end);
             int len = end - start + 1;
-            words_from_str2[str2_words_index] = malloc((len + 1) * sizeof(char));
-            strncpy(words_from_str2[str2_words_index], str2 + start, len);
+            char *word = malloc((len + 1) * sizeof(char));
+            strncpy(word, &str2[start], len);
+            word[len] = 0;
+            words_from_str2 = add(words_from_str2, word);
             start = -1;
         }
         if (i != str2_len && str2[i] != ' ' && str2[i] != '\t' && start == -1) {
@@ -83,16 +93,18 @@ char *process(char *str1, char *str2) {
             char tmp[word_len + 1];
             strncpy(tmp, &str1[start], word_len);
             tmp[word_len] = 0;
-            if (contains(tmp, words_from_str2, str2_words_index + 1)) {
+            if (contains(words_from_str2, tmp)) {
                 if (!result) {
                     result = malloc((word_len + 2) * sizeof(char));
                     result_len = word_len + 1;
+                    strncpy(result, tmp, word_len);
+                    result[word_len] = 0;
                 } else {
                     result_len += word_len + 1;
-                    result = realloc(result, result_len);
+                    result = realloc(result, result_len + 1);
+                    strncat(result, tmp, word_len);
                 }
-                strncat(result, tmp, word_len);
-                strncat(result, " ", 1);
+                strcat(result, " ");
             }
             start = -1;
         }
@@ -100,6 +112,8 @@ char *process(char *str1, char *str2) {
             start = i;
         }
     }
+
+    free_list(words_from_str2);
 
     return result;
 }
