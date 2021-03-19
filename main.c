@@ -21,71 +21,112 @@ char *get_line_impl() {
     return line;
 }
 
+void iterate_string_words(char *str, void (*process_word)(int, int, char *, void *, int *), void *args) {
+    int start = 0;
+    size_t str_len = strlen(str);
+    for (int i = 0; i <= str_len; i++) {
+        if (start != -1 && (i == str_len || (str[i] == ' ' || str[i] == '\t'))) {
+            int end = i - 1;
+            int len = end - start + 1;
+            char word[len + 1];
+            strncpy(word, &str[start], len);
+            word[len] = 0;
+            int stop = 0;
+            process_word(len, start, word, args, &stop);
+            if (stop) {
+                break;
+            }
+            start = -1;
+        }
+        if (i != str_len && str[i] != ' ' && str[i] != '\t' && start == -1) {
+            start = i;
+        }
+    }
+}
+
+typedef struct process_str2_args {
+    char *word;
+    int *found;
+} process_str2_args;
+
+void process_str2(int len, int word_index, char *word, void *args, int *stop) {
+    process_str2_args *args_ptr = args;
+    if (!strcmp(word, args_ptr->word)) {
+        *(args_ptr->found) = 1;
+        *stop = 1;
+    }
+}
+
+typedef struct process_str1_args {
+    char *result;
+    int result_len;
+    char *str2;
+    int found;
+} process_str1_args;
+
+void process_str1(int len, int word_index, char *word, void *args, int *stop) {
+    process_str1_args *args_ptr = args;
+    process_str2_args str2_args;
+    str2_args.word = word;
+    str2_args.found = &args_ptr->found;
+    iterate_string_words(args_ptr->str2, process_str2, &str2_args);
+    if (args_ptr->found) {
+        if (!args_ptr->result) {
+            // terminator + space => 2
+            args_ptr->result = malloc((len + 2) * sizeof(char));
+            args_ptr->result_len = len + 1;
+            strncpy(args_ptr->result, word, len);
+            args_ptr->result[len] = 0;
+        } else {
+            args_ptr->result_len += len + 1;
+            args_ptr->result = realloc(args_ptr->result, args_ptr->result_len + 1);
+            strncat(args_ptr->result, word, len);
+        }
+        strcat(args_ptr->result, " ");
+    }
+}
+
 // Words from str1 that str2 contains
 char *process(char *str1, char *str2) {
-    char *result = 0;
-    int result_len = 0;
-
-    size_t str1_len = strlen(str1);
-    size_t str2_len = strlen(str2);
-
-
-    int start2 = 0;
-    for (int j = 0; j <= str1_len; j++) {
-        if (start2 != -1 && (j == str1_len || (str1[j] == ' ' || str1[j] == '\t'))) {
-            int end2 = j - 1;
-            // Hello 4 - 0 + 1 = 5
-            int word_len = end2 - start2 + 1;
-            char tmp[word_len + 1];
-            strncpy(tmp, &str1[start2], word_len);
-            tmp[word_len] = 0;
-
-            int start = 0;
-            for (int i = 0; i <= str2_len; i++) {
-                if (start != -1 && (i == str2_len || (str2[i] == ' ' || str2[i] == '\t'))) {
-                    int end = i - 1;
-                    int len = end - start + 1;
-                    char word[len + 1];
-                    strncpy(word, &str2[start], len);
-                    word[len] = 0;
-                    //words_from_str2 = add(words_from_str2, word);
-
-                    if (!strcmp(word, tmp)) {
-                        if (!result) {
-                            // terminator + space => 2
-                            result = malloc((word_len + 2) * sizeof(char));
-                            result_len = word_len + 1;
-                            strncpy(result, tmp, word_len);
-                            result[word_len] = 0;
-                        } else {
-                            result_len += word_len + 1;
-                            result = realloc(result, result_len + 1);
-                            strncat(result, tmp, word_len);
-                        }
-                        strcat(result, " ");
-                        break;
-                    }
-
-                    // END
-                    start = -1;
-                }
-                if (i != str2_len && str2[i] != ' ' && str2[i] != '\t' && start == -1) {
-                    start = i;
-                }
-            }
-            start2 = -1;
-        }
-        if (j != str1_len && str1[j] != ' ' && str1[j] != '\t' && start2 == -1) {
-            start2 = j;
-        }
-    }
+    process_str1_args args;
+    args.result = 0;
+    args.result_len = 0;
+    args.str2 = str2;
+    args.found = 0;
+    iterate_string_words(str1, process_str1, &args);
 
     // Remove last space character
-    if (result && result_len > 0) {
-        result[result_len - 1] = 0;
+    if (args.result && args.result_len > 0) {
+        args.result[args.result_len - 1] = 0;
     }
 
-    return result;
+    return args.result;
+}
+
+void process_get_first(int len, int word_index, char *word, void *args, int *stop) {
+    char **first_word = args;
+    size_t full_len = strlen(word) + 1;
+    *first_word = malloc(full_len);
+    strncpy(*first_word, word, full_len);
+    *stop = 1;
+}
+
+typedef struct add_symbol {
+    size_t result_len;
+    int offset;
+    char *result_copy;
+    char *word;
+} add_symbol;
+
+void process_add_symbol(int len, int word_index, char *word, void *args, int *stop) {
+    add_symbol *args_ptr = args;
+    if (!strcmp(word, args_ptr->word)) {
+        args_ptr->result_copy = realloc(args_ptr->result_copy, args_ptr->result_len + args_ptr->offset + 2);
+        char *word_start_addr = args_ptr->result_copy + args_ptr->offset + word_index;
+        memmove(word_start_addr + 1, word_start_addr, ( args_ptr->result_len) - word_index + 1);
+        *word_start_addr = '*';
+        args_ptr->offset++;
+    }
 }
 
 int main() {
@@ -107,7 +148,20 @@ int main() {
         free(str2);
         if (result) {
             printf("%s\n", result);
+            char *first_word = 0;
+            iterate_string_words(result, process_get_first, &first_word);
+            printf("%s\n", first_word);
+            add_symbol args;
+            args.result_len = strlen(result);
+            args.result_copy = malloc(args.result_len + 1);
+            strncpy(args.result_copy, result, args.result_len + 1);
+            args.offset = 0;
+            args.word = first_word;
+            iterate_string_words(result, process_add_symbol, &args);
+            free(first_word);
             free(result);
+            printf("%s\n", args.result_copy);
+            free(args.result_copy);
         }
     }
     return 0;
