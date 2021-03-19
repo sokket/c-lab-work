@@ -79,17 +79,29 @@ char *process(char *str1, char *str2) {
             start2 = j;
         }
     }
+
+    // Remove last space character
+    if (result && result_len > 0) {
+        result[result_len - 1] = 0;
+    }
+
     return result;
 }
 
 int main() {
     for (;;) {
+        printf("Введите строку № 1: ");
         char *str1 = get_line_impl();
-        if (strlen(str1) == 0) {
+        printf("Введите строку № 2: ");
+        char *str2 = get_line_impl();
+
+        if (strlen(str1) == 0 && strlen(str2) == 0) {
+            printf("Пустой ввод, завершение программы\n");
             free(str1);
+            free(str2);
             break;
         }
-        char *str2 = get_line_impl();
+
         char *result = process(str1, str2);
         free(str1);
         free(str2);
